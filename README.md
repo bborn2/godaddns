@@ -1,4 +1,5 @@
-# fork from https://github.com/proprietary/godaddns ， fix some bugs and it work well for me.
+#2021.3.20
+fork from https://github.com/proprietary/godaddns ， fix some bugs and it work well for me.
 
 # Godaddns
 
