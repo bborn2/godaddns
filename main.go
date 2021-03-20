@@ -14,10 +14,19 @@ import (
 var IP_PROVIDER = "https://v4.ident.me/"
 
 func getOwnIPv4() (string, error) {
-	resp, err := http.Get(IP_PROVIDER)
+
+	c := http.Client{Timeout: 10 * time.Second}
+
+	resp, err := c.Get(IP_PROVIDER)
+
+	if nil != resp {
+		defer resp.Body.Close()
+	}
+
 	if err != nil {
 		return "", err
 	}
+
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(resp.Body)
 	return buf.String(), nil
@@ -29,8 +38,14 @@ func getDomainIPv4() (string, error) {
 		return "", err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("sso-key %s:%s", GODADDY_KEY, GODADDY_SECRET))
-	c := new(http.Client)
+	c := http.Client{Timeout: 5 * time.Second}
+
 	resp, err := c.Do(req)
+
+	if nil != resp {
+		defer resp.Body.Close()
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -67,8 +82,14 @@ func putNewIP(ip string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("sso-key %s:%s", GODADDY_KEY, GODADDY_SECRET))
-	c := new(http.Client)
+	c := http.Client{Timeout: 5 * time.Second}
+
 	resp, err := c.Do(req)
+
+	if nil != resp {
+		defer resp.Body.Close()
+	}
+
 	if err != nil {
 		log.Errorf("res err %s", err)
 		return err
@@ -87,18 +108,20 @@ func run() {
 	ownIP, err := getOwnIPv4()
 	if err != nil {
 		log.Errorf("get own ip err, %s", err)
+		return
 	}
 
-	log.Debug("get own ip: %s", ownIP)
+	log.Debugf("get own ip: %s", ownIP)
 
 	log.Debug("get domain ip -")
 
 	domainIP, err := getDomainIPv4()
 	if err != nil {
 		log.Errorf("get domain ip err, %s", err)
+		return
 	}
 
-	log.Debug("get domain ip: %s", domainIP)
+	log.Debugf("get domain ip: %s", domainIP)
 
 	// if domainIP != ownIP {
 	if err := putNewIP(ownIP); err != nil {
