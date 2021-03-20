@@ -1,15 +1,14 @@
 package main
 
 import (
-	"net/http"
-	"log"
-	"encoding/json"
-	"fmt"
-	"errors"
 	"bytes"
-	"time"
+	"encoding/json"
 	"flag"
-	"os"
+	"fmt"
+	"net/http"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var IP_PROVIDER = "https://v4.ident.me/"
@@ -45,18 +44,21 @@ func getDomainIPv4() (string, error) {
 func putNewIP(ip string) error {
 	var buf bytes.Buffer
 
-	err := json.NewEncoder(&buf).Encode(&struct {
+	err := json.NewEncoder(&buf).Encode([]struct {
 		Name string `json:"name"`
 		Data string `json:"data"`
-		TTL int64 `json:"ttl"`
-	} {
+		TTL  int64  `json:"ttl"`
+	}{{
 		SUBDOMAIN,
 		ip,
 		600,
-	})
+	}})
 	if err != nil {
 		return err
 	}
+
+	log.Debugf("req %s", &buf)
+
 	req, err := http.NewRequest("PUT",
 		fmt.Sprintf("https://api.godaddy.com/v1/domains/%s/records/A", DOMAIN),
 		&buf)
@@ -68,29 +70,43 @@ func putNewIP(ip string) error {
 	c := new(http.Client)
 	resp, err := c.Do(req)
 	if err != nil {
+		log.Errorf("res err %s", err)
 		return err
 	}
 	if resp.StatusCode == 200 {
+		log.Debug("update ok")
 		return nil
 	} else {
-		return errors.New(fmt.Sprintf("Failed with HTTP status code %d\n", resp.StatusCode))
+		return fmt.Errorf("failed with HTTP status code %d", resp.StatusCode)
 	}
 }
 
 func run() {
+	log.Debug("get own ip -")
+
 	ownIP, err := getOwnIPv4()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("get own ip err, %s", err)
 	}
+
+	log.Debug("get own ip: %s", ownIP)
+
+	log.Debug("get domain ip -")
+
 	domainIP, err := getDomainIPv4()
 	if err != nil {
+		log.Errorf("get domain ip err, %s", err)
+	}
+
+	log.Debug("get domain ip: %s", domainIP)
+
+	// if domainIP != ownIP {
+	if err := putNewIP(ownIP); err != nil {
 		log.Fatal(err)
 	}
-	if domainIP != ownIP {
-		if err := putNewIP(ownIP); err != nil {
-			log.Fatal(err)
-		}
-	}
+	// } else {
+	// 	log.Infof("same ip, ignore")
+	// }
 }
 
 // globals
@@ -100,8 +116,14 @@ var DOMAIN = ""
 var SUBDOMAIN = ""
 
 func main() {
-	// log file flag
-	logFile := flag.String("log", "", "Path for log file (will be created if it doesn't exist)")
+
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+	})
+
+	log.SetLevel(log.DebugLevel)
+
 	// required flags
 	keyPtr := flag.String("key", "", "Godaddy API key")
 	secretPtr := flag.String("secret", "", "Godaddy API secret")
@@ -115,17 +137,6 @@ func main() {
 	DOMAIN = *domainPtr
 	GODADDY_SECRET = *secretPtr
 	GODADDY_KEY = *keyPtr
-
-	if *logFile == "" {
-		log.SetOutput(os.Stdout)
-	} else {
-		f, err := os.OpenFile(*logFile, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("Couldn't open log file: %s", err)
-		}
-		defer f.Close()
-		log.SetOutput(f)
-	}
 
 	if DOMAIN == "" {
 		log.Fatalf("You need to provide your domain")
@@ -141,6 +152,7 @@ func main() {
 
 	// run
 	for {
+		log.Debug("start")
 		run()
 		time.Sleep(time.Second * time.Duration(*POLLING))
 	}
