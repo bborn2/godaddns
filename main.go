@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -123,13 +125,13 @@ func run() {
 
 	log.Debugf("get domain ip: %s", domainIP)
 
-	// if domainIP != ownIP {
-	if err := putNewIP(ownIP); err != nil {
-		log.Fatal(err)
+	if domainIP != ownIP {
+		if err := putNewIP(ownIP); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Infof("same ip, ignore")
 	}
-	// } else {
-	// 	log.Infof("same ip, ignore")
-	// }
 }
 
 // globals
@@ -146,6 +148,19 @@ func main() {
 	})
 
 	log.SetLevel(log.DebugLevel)
+
+	//设置output,默认为stderr,可以为任何io.Writer，比如文件*os.File
+	file, err := os.OpenFile("./dnslog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	writers := []io.Writer{
+		file,
+		os.Stdout}
+	//同时写文件和屏幕
+	fileAndStdoutWriter := io.MultiWriter(writers...)
+	if err == nil {
+		log.SetOutput(fileAndStdoutWriter)
+	} else {
+		log.Info("failed to log to file.")
+	}
 
 	// required flags
 	keyPtr := flag.String("key", "", "Godaddy API key")
@@ -175,8 +190,9 @@ func main() {
 
 	// run
 	for {
-		log.Debug("start")
+		log.Debug("--start--")
 		run()
+		log.Debug("---end---")
 		time.Sleep(time.Second * time.Duration(*POLLING))
 	}
 }
