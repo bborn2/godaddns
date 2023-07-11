@@ -8,12 +8,18 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
-var IP_PROVIDER = "https://v4.ident.me/"
+var (
+	Buildstamp string
+	Githash    string
+)
+
+var IP_PROVIDER = "http://v4.ident.me/"
 
 func getOwnIPv4() (string, error) {
 
@@ -170,7 +176,32 @@ func main() {
 	subdomainPtr := flag.String("subdomain", "@", "The data value (aka host) for the A record. It can be a 'subdomain' (e.g., 'subdomain' where 'subdomain.example.com' is the qualified domain name). Note that such an A record must be set up first in your Godaddy account beforehand. Defaults to @. (Optional)")
 	POLLING := flag.Int64("interval", 360, "Polling interval in seconds. Lookup Godaddy's current rate limits before setting too low. Defaults to 360. (Optional)")
 
+	var runAsDaemon bool
+	var flagversion bool
+	flag.BoolVar(&flagversion, "v", false, "version")
+	flag.BoolVar(&runAsDaemon, "d", false, "start as daemon")
+
 	flag.Parse()
+
+	if flagversion {
+		fmt.Printf("Git Commit Hash: %s\n", Githash)
+		fmt.Printf("Build Time : %s\n", Buildstamp)
+		return
+	}
+
+	if runAsDaemon {
+
+		if os.Getppid() != 1 {
+
+			log.Info("------start server fork------")
+
+			startDaemon()
+
+			log.Info("--------------- server fork finish ---------------")
+			return
+		}
+	}
+
 	SUBDOMAIN = *subdomainPtr
 	DOMAIN = *domainPtr
 	GODADDY_SECRET = *secretPtr
@@ -194,5 +225,50 @@ func main() {
 		run()
 		log.Debug("---end---")
 		time.Sleep(time.Second * time.Duration(*POLLING))
+	}
+}
+
+// nohup sudo /home/kun/git/godaddns/godaddns -key 9Q1BC4viSQc_c4H5TFupw4QMPME6sHUfU
+// -secret c4LP2RNWN4UzwVdQL5SX4 -domain=fangfangtu.com > /dev/null 2>&1 &
+
+func startDaemon() {
+	log.Infof("runAsDaemon, current pid = %d", os.Getppid())
+
+	var newarg []string = make([]string, 0)
+
+	//可能有些多余，如果主进程推出较慢可能会有问题
+
+	skip := false
+	for _, v := range os.Args {
+		if skip {
+			skip = false
+
+		} else if v == "-d" {
+
+		} else if v == "-c" {
+			skip = true
+
+		} else {
+			newarg = append(newarg, v)
+		}
+	}
+
+	ex, err := os.Executable()
+	if err != nil {
+		log.Error("get exe path err, ", err.Error())
+		return
+	}
+
+	// 将其他命令传入生成出的进程
+	cmd := exec.Command(ex, newarg[1:]...)
+
+	// cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+
+	err = cmd.Start() // 开始执行新进程，不等待新进程退出
+
+	if err != nil {
+		log.Error("start cmd err, ", err.Error())
 	}
 }
