@@ -61,6 +61,9 @@ func getDomainIPv4() (string, error) {
 		Data string `json:"data"`
 	}, 1)
 	json.NewDecoder(resp.Body).Decode(&in)
+
+	print(json.NewDecoder(resp.Body).Token())
+
 	return in[0].Data, nil
 }
 
@@ -272,3 +275,8 @@ func startDaemon() {
 		log.Error("start cmd err, ", err.Error())
 	}
 }
+
+// Key
+// 9Q1BC4viSQc_PQm8UJ5GhmvHtv1rV1CvFD
+// Secret
+// QZ2tzaFD2h2jE26iCmzwGo
