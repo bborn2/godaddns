@@ -2,7 +2,7 @@ LDFLAGS="-X main.Buildstamp=`date '+%Y-%m-%d_%I:%M:%S%p'` -X main.Githash=`git d
 
 build: clean
 	go mod tidy
-	go build -ldflags $(LDFLAGS) -o ./godaddns main.go
+	go build -ldflags $(LDFLAGS) -o ./cfddns main.go
  
 
 # install:
@@ -11,4 +11,4 @@ build: clean
 
 
 clean:
-	rm -rf ./output/
+	rm -rf ./cfddns
